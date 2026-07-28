@@ -1,42 +1,145 @@
 # weight-coach
 
-Personal AI-assisted weight & habit tracker. Runs on your own Linux box.
+Personal AI-assisted weight and habit tracker. Runs on your own hardware, no cloud dependencies for the coaching loop.
 
-**Stack:** Python venv (FastAPI + APScheduler + SQLite) · npm/Vite PWA · systemd · Ollama (later) · Anthropic API (later).
+**Stack**
+- Python venv (FastAPI + APScheduler + SQLite) — the API, scheduler, and Discord bot
+- npm / Vite PWA — LAN-only web UI for charts and drilldowns
+- Ollama (on a beefier machine) — local LLM for meal-macro estimation
+- Anthropic / OpenAI (optional) — cloud fallback and future weekly coach
+- systemd — three units on the always-on host (`api`, `worker`, `bot`) + a nightly backup timer
 
-**Data sources:** Oura ring · smart scale (abstracted; starts manual) · nightly text check-in about the day's food.
+**Data sources**
+- **Oura ring** — daily readiness, sleep score, HRV, activity kcal, workouts, stress, resilience, vO₂ max, tags. Polled every morning; manual `Sync Oura now` button in the PWA.
+- **Cleverio Wifi Scale 2** (via Tuya Cloud) — weight + raw body-composition properties, polled every 5 min from the device shadow.
+- **Manual** — weight, meals, workouts, freetext nightly check-in via PWA or Discord slash commands.
 
-## Phase 1 (this scaffold)
+**Interaction layer**
+- **PWA** on your LAN for dashboard, drilldown per day, and analytics
+- **Discord bot** for mobile logging anywhere: `/weight`, `/log`, `/workout`, `/status`, plus a nightly 23:00 DM nudge
 
-- FastAPI + SQLite with `daily`, `oura_raw`, `meals`, `checkins`, `coach_notes`, `meal_templates`, `push_subs` tables
-- Oura daily poller
-- Manual weight entry endpoint
-- Free-text nightly check-in stored raw (LLM parsing comes in Phase 2)
-- PWA shell with Web Push subscription and a 23:00 notification
-- Two systemd units (api, worker) + nightly SQLite backup timer
+## Architecture (target)
 
-## Quick start (dev)
+```
+┌──────────────────────────────┐    ┌───────────────────────┐
+│  RPi 4 (always on, ~4W)      │    │  homeAI (on-demand)   │
+│                              │    │                       │
+│  • FastAPI (LAN web UI)      │───►│  • Ollama             │
+│  • APScheduler worker        │    │    (qwen2.5:7b)       │
+│  • Discord bot               │    │                       │
+│  • SQLite                    │    └───────────────────────┘
+│                              │             ↑
+│  Falls back to OpenAI when   │             │
+│  homeAI is unreachable       │             │ LAN
+└──────────────────────────────┘             │
+        ↑                    ↑               │
+        │ LAN browser        │ Discord Gateway
+        │ (charts)           │ (meal logs, /weight, /status)
+        │                    │
+        └───── phone/laptop ─┘
+```
+
+For local development everything can run on one Mac; the Pi is just the eventual deployment target.
+
+## Feature status
+
+**Built**
+- Data ingestion: Oura, Tuya scale, manual weight/meal/workout, freetext check-in
+- Meal estimator with template cache → Ollama → OpenAI → deferred, backfilled hourly
+- Dashboard: today In/Out/Net, week net, cumulative deficit, predicted vs actual kg, latest weight
+- Per-day drilldown with all Oura fields, meals with macros, workouts, and raw scale properties
+- Web Push at 23:00 (browser)
+- Discord bot with slash commands + nightly DM nudge
+- BMR-based Out fallback for days without Oura
+- Three systemd units + nightly SQLite backup
+- macOS + Zscaler compatibility via `truststore.inject_into_ssl()`
+
+**Not yet (roadmap)**
+- LLM parsing of the full nightly check-in transcript (currently stored raw)
+- Meal template quick-picks surfaced in the UI
+- 14-day maintenance recalibration loop (`MAINTENANCE_KCAL` is dormant)
+- Weekly Anthropic coach summary
+- Charts: weight trend, cumulative deficit line, macro/food-group drilldown
+- Running-plan module (Oura readiness–gated progression)
+- Withings support if the scale is upgraded later
+
+## Layout
+
+```
+weight-coach/
+├── api/
+│   ├── pyproject.toml
+│   └── src/weight_coach/
+│       ├── main.py               # FastAPI app
+│       ├── worker.py             # APScheduler: Oura sync, checkin push, backfill, Tuya poll
+│       ├── bot.py                # Discord bot (slash commands + 23:00 DM)
+│       ├── config.py             # pydantic-settings, reads .env at repo root
+│       ├── db.py                 # SQLite schema + idempotent column migrations
+│       ├── http.py               # truststore.inject_into_ssl() bootstrap
+│       ├── push_send.py          # Web Push fan-out
+│       ├── models.py             # Pydantic request models
+│       ├── providers/
+│       │   ├── oura.py           # Oura v2 poller (readiness, sleep, activity, workouts, stress, resilience, vO2, tags)
+│       │   ├── oura_debug.py     # one-shot diagnostic script
+│       │   ├── tuya.py           # Cleverio scale via shadow properties
+│       │   ├── tuya_debug.py     # one-shot diagnostic script
+│       │   ├── estimator.py      # meal-macro LLM chain (template → Ollama → OpenAI → pending)
+│       │   ├── ble_scan.py       # BLE scanner used during scale investigation
+│       └── routes/               # weight, meal, workout, checkin, daily, oura, tuya, push
+├── web/                          # Vite PWA
+├── data/                         # SQLite DB + nightly backups
+├── deploy/                       # systemd units for Linux
+└── env.example                   # copy to `.env` and fill in
+```
+
+## Quick start (dev, macOS or Linux)
 
 ```bash
 # API
 cd api
 python -m venv .venv && source .venv/bin/activate
 pip install -e .
-cp ../.env.example ../.env         # then edit
-python -m weight_coach.migrate     # create tables
-uvicorn weight_coach.main:app --reload --port 8765
+cp ../env.example ../.env         # then edit
+python -m weight_coach.migrate    # create tables
 
-# Worker (separate terminal)
+python -m uvicorn weight_coach.main:app --reload --port 8765
+
+# Worker (separate shell)
 source api/.venv/bin/activate
 python -m weight_coach.worker
 
+# Discord bot (separate shell)
+source api/.venv/bin/activate
+python -m weight_coach.bot
+
 # Web
-cd web
-npm install
-npm run dev
+cd web && npm install && npm run dev
 ```
 
-## Deploy (Linux + systemd)
+Open [http://127.0.0.1:5173](http://127.0.0.1:5173).
 
-See `deploy/` — copy the three units to `~/.config/systemd/user/` and
-`systemctl --user enable --now weight-coach-api.service weight-coach-worker.service weight-coach-backup.timer`.
+## Deploy (Linux + systemd, e.g. RPi)
+
+See [`deploy/README.md`](deploy/README.md) — three user-mode services (`api`, `worker`, `bot`) + a nightly SQLite backup timer, plus the one-liner (`sudo loginctl enable-linger $USER`) that makes them survive reboots on a headless Pi.
+
+## Configuration cheatsheet (`.env`)
+
+| Key | What it does |
+|---|---|
+| `WC_DB_PATH` | SQLite path (default `./data/weight.db`) |
+| `WC_API_HOST`, `WC_API_PORT` | Where uvicorn binds |
+| `PROGRAM_START` | Anchors cumulative deficit calculations |
+| `MAINTENANCE_KCAL` | Starting guess for TDEE (dormant, will be recalibrated in Phase 3) |
+| `BMR_KCAL` | Used for "Out" fallback when Oura data is absent |
+| `OURA_TOKEN` | Oura personal access token — grant **all scopes** |
+| `TUYA_ENDPOINT` | Tuya cloud data center (Central Europe = `https://openapi.tuyaeu.com` for Nordic accounts) |
+| `TUYA_ACCESS_ID`, `TUYA_ACCESS_SECRET`, `TUYA_DEVICE_ID`, `TUYA_UID` | Tuya IoT Cloud project + scale |
+| `OLLAMA_URL`, `OLLAMA_MODEL` | Local LLM for meal estimation (default `qwen2.5:7b-instruct`) |
+| `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` | Cloud fallback for meal estimation |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Web Push for the browser 23:00 nudge (optional if you use Discord) |
+| `DISCORD_TOKEN`, `DISCORD_USER_ID`, `DISCORD_GUILD_ID` | Discord bot |
+| `CHECKIN_HOUR`, `CHECKIN_MINUTE` | Time for the 23:00 DM/push |
+
+## macOS + Zscaler note
+
+Behind Zscaler (or any corporate TLS-inspection proxy) Python's default certifi CA bundle fails. This project uses [`truststore`](https://pypi.org/project/truststore/) and calls `truststore.inject_into_ssl()` at process start in both the API, worker, and bot — this makes Python use the OS keychain, which already trusts Zscaler.
