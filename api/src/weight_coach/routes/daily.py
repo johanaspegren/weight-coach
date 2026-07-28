@@ -105,9 +105,15 @@ def summary():
     )
     actual = (last_weight - first_weight) if (first_weight and last_weight) else None
 
+    latest_weight = next((r["weight_kg"] for r in reversed(rows) if r["weight_kg"] is not None), None)
+    latest_weight_date = next((r["date"] for r in reversed(rows) if r["weight_kg"] is not None), None)
+
     return {
         "program_start": settings.program_start,
         "days": len(rows),
+        "today_weight_kg": today["weight_kg"],
+        "latest_weight_kg": latest_weight,
+        "latest_weight_date": latest_weight_date,
         "today_kcal_in": today["kcal_in_est"],
         "today_kcal_out": today_out,
         "today_deficit_kcal": today_def,

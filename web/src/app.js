@@ -88,6 +88,20 @@ async function view_home() {
   return `
     <h1>weight-coach</h1>
     <div class="card">
+      <h2>Weight</h2>
+      <div class="stat">
+        <div>
+          <div class="lbl">Today</div>
+          <div class="big">${s.today_weight_kg != null ? s.today_weight_kg + " kg" : "—"}</div>
+        </div>
+        <div>
+          <div class="lbl">Latest reading${s.latest_weight_date && s.latest_weight_date !== today ? ` (${s.latest_weight_date})` : ""}</div>
+          <div class="big">${s.latest_weight_kg != null ? s.latest_weight_kg + " kg" : "—"}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Today</h2>
       <div class="stat stat-3">
         <div>
