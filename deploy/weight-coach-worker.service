@@ -1,0 +1,13 @@
+[Unit]
+Description=weight-coach worker (APScheduler: Oura sync + nightly push)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/weight-coach
+ExecStart=%h/dev/weight-coach/api/.venv/bin/python -m weight_coach.worker
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

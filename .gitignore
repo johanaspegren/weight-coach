@@ -1,0 +1,50 @@
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Vite
+node_modules/
+.vite/
+
+# Local data and databases
+data/*.db
+data/*.db-journal
+data/backups/
+*.sqlite3
+*.db
+*.db-journal
+
+# Environment files
+.env
+.env.*
+.env.local
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Secrets and temporary files
+secrets/
+*.pem
+*.key
+*.crt
+*.log
+tmp/
+temp/
+*.bak
+*.orig

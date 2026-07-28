@@ -1,0 +1,7 @@
+[Unit]
+Description=weight-coach SQLite nightly backup
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/dev/weight-coach
+ExecStart=/bin/sh -c 'mkdir -p data/backups && /usr/bin/sqlite3 data/weight.db ".backup data/backups/weight-$(date +%%Y%%m%%d).db" && find data/backups -name "weight-*.db" -mtime +30 -delete'
