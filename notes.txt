@@ -1,13 +1,1 @@
 Subway, 6 inches, Chicken Teriyaki
-
-Access ID/Client ID: 
-c9...
-
-
-Access Secret/Client Secret
-9fb6...
-
-
-Project Code
-p1785185444759s4wqr7
-

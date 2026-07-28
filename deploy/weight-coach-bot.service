@@ -1,0 +1,14 @@
+[Unit]
+Description=weight-coach Discord bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/dev/weight-coach
+ExecStart=%h/dev/weight-coach/api/.venv/bin/python -m weight_coach.bot
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     tuya_device_id: str = ""
     tuya_uid: str = ""
 
+    discord_token: str = ""
+    discord_user_id: str = ""
+    discord_guild_id: str = ""
+
     ollama_url: str = "http://localhost:11434"
     ollama_model: str = "gemma4:e2b"
 

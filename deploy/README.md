@@ -16,7 +16,7 @@ Install the units:
 mkdir -p ~/.config/systemd/user
 cp deploy/weight-coach-*.service deploy/weight-coach-*.timer ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user enable --now weight-coach-api.service weight-coach-worker.service weight-coach-backup.timer
+systemctl --user enable --now weight-coach-api.service weight-coach-worker.service weight-coach-bot.service weight-coach-backup.timer
 loginctl enable-linger $USER   # so units keep running when you're logged out
 ```
 
