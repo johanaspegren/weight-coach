@@ -154,6 +154,10 @@ async function view_home() {
         <h2>Nightly check-in</h2>
         <div class="muted">What did you eat today?</div>
       </a>
+      <a class="card" href="#data" style="text-decoration:none;color:inherit">
+        <h2>Data</h2>
+        <div class="muted">Export or import backups</div>
+      </a>
     </div>
 
     <div class="card">
@@ -407,6 +411,30 @@ function view_checkin() {
   `;
 }
 
+function view_data() {
+  return `
+    <a class="muted" href="#">← back</a>
+    <h1>Data</h1>
+    <div class="card">
+      <h2>Export</h2>
+      <a class="button-link" href="/data/export.json" download>Download JSON backup</a>
+      <a class="button-link ghost" href="/data/export.csv.zip" download>Download CSV zip</a>
+      <div class="muted" style="margin-top:10px">JSON is the restorable backup format. CSV is for spreadsheets and inspection.</div>
+    </div>
+
+    <div class="card">
+      <h2>Import JSON</h2>
+      <input id="import-file" type="file" accept="application/json,.json">
+      <label style="display:flex;gap:8px;align-items:center;margin-top:12px">
+        <input id="import-replace" type="checkbox" style="width:auto">
+        <span>Replace existing imported tables first</span>
+      </label>
+      <button id="import-json">Import</button>
+      <div class="muted" id="import-msg"></div>
+    </div>
+  `;
+}
+
 async function attachHandlers(root) {
   const hash = location.hash.replace("#", "");
 
@@ -578,6 +606,32 @@ async function attachHandlers(root) {
       }
     };
   }
+
+  if (hash === "data") {
+    root.querySelector("#import-json").onclick = async () => {
+      const msg = root.querySelector("#import-msg");
+      const file = root.querySelector("#import-file").files[0];
+      const replace = root.querySelector("#import-replace").checked;
+      if (!file) {
+        msg.textContent = "Choose a JSON export first.";
+        return;
+      }
+      try {
+        msg.textContent = "Importing…";
+        const payload = JSON.parse(await file.text());
+        const result = await fetchJSON(`/data/import?mode=${replace ? "replace" : "merge"}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const total = Object.values(result.imported || {}).reduce((sum, n) => sum + n, 0);
+        const ignored = Object.keys(result.ignored_columns || {}).length;
+        msg.textContent = `Imported ${total} row(s) in ${result.mode} mode${ignored ? `; ignored old/new columns in ${ignored} table(s)` : ""}.`;
+      } catch (e) {
+        msg.textContent = "Error: " + e.message;
+      }
+    };
+  }
 }
 
 async function subscribePush(statusEl) {
@@ -635,6 +689,7 @@ export async function renderApp(root) {
     route === "meal" ? await view_meal() :
     route === "workout" ? await view_workout() :
     route === "checkin" ? view_checkin() :
+    route === "data" ? view_data() :
     route === "detail" ? await view_detail(arg || todayISO()) :
     await view_home();
   root.innerHTML = view;

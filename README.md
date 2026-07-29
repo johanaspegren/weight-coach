@@ -148,6 +148,16 @@ See [`deploy/README.md`](deploy/README.md) — three user-mode services (`api`, 
 | `DISCORD_TOKEN`, `DISCORD_USER_ID`, `DISCORD_GUILD_ID` | Discord bot |
 | `CHECKIN_HOUR`, `CHECKIN_MINUTE` | Time for the 23:00 DM/push |
 
+## Data export / import
+
+The PWA has a `Data` screen with:
+
+- JSON export — the restorable backup format
+- CSV zip export — one CSV per table plus a manifest, for spreadsheet inspection
+- JSON import — merge by primary key by default, with an optional replace mode
+
+JSON exports include a manifest with export version, table columns, primary keys, and rows. Import is intentionally version-tolerant: unknown tables and columns are ignored, and columns added by newer app versions can stay empty/defaulted when importing older exports.
+
 ## macOS + Zscaler note
 
 Behind Zscaler (or any corporate TLS-inspection proxy) Python's default certifi CA bundle fails. This project uses [`truststore`](https://pypi.org/project/truststore/) and calls `truststore.inject_into_ssl()` at process start in both the API, worker, and bot — this makes Python use the OS keychain, which already trusts Zscaler.

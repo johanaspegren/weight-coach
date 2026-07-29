@@ -26,6 +26,8 @@ data/backups/
 *.db
 *.db-journal
 
+weight-coach-export-2026-07-29/
+
 # Environment files
 .env
 .env.*
