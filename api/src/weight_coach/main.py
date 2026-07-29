@@ -35,6 +35,16 @@ def create_app() -> FastAPI:
 
     if settings.web_dist.exists():
         app.mount("/", StaticFiles(directory=str(settings.web_dist), html=True), name="web")
+    else:
+        @app.get("/")
+        def web_not_built():
+            return {
+                "detail": (
+                    "Web UI is not built. In development, run "
+                    "scripts/start-dev.sh --with-web and open http://127.0.0.1:5173. "
+                    "For API-served static files, run npm --prefix web run build."
+                ),
+            }
 
     return app
 

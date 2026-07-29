@@ -118,6 +118,14 @@ cd web && npm install && npm run dev
 
 Open [http://127.0.0.1:5173](http://127.0.0.1:5173).
 
+Or start the three application services together from the repo root:
+
+```bash
+scripts/start-dev.sh
+```
+
+Use `scripts/start-dev.sh --with-web` to start the Vite UI too, or add `--reload` for API hot reload. Logs are written to `.run/`.
+
 ## Deploy (Linux + systemd, e.g. RPi)
 
 See [`deploy/README.md`](deploy/README.md) — three user-mode services (`api`, `worker`, `bot`) + a nightly SQLite backup timer, plus the one-liner (`sudo loginctl enable-linger $USER`) that makes them survive reboots on a headless Pi.
