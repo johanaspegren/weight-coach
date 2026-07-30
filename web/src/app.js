@@ -120,26 +120,40 @@ async function view_home() {
     fetchJSON("/daily/history?days=7").catch(() => []),
   ]);
 
+  const g = det?.garmin || {};
   const o = det?.oura || {};
+  // Prefer Garmin when present; fall back to Oura for pre-Garmin historic days.
+  const source = det?.garmin ? "Garmin" : (det?.oura ? "Oura" : null);
+  const tiles = det?.garmin ? `
+        ${miniTile("Body Battery", g.body_battery)}
+        ${miniTile("Sleep", g.sleep_score)}
+        ${miniTile("HRV", g.hrv_ms, " ms")}
+        ${miniTile("Resting HR", g.resting_hr, " bpm")}
+        ${miniTile("Stress", g.stress_avg)}
+        ${miniTile("Steps", g.steps)}
+      ` : `
+        ${miniTile("Readiness", o.readiness)}
+        ${miniTile("Sleep", o.sleep_score)}
+        ${miniTile("HRV", o.hrv_avg)}
+        ${miniTile("vO₂ max", o.vo2_max)}
+        ${miniTile("Stress hi", o.stress_high_min, " min")}
+        ${miniTile("Resilience", o.resilience_level, "", true)}
+      `;
   const readingsCard = `
     <div class="card">
       <a href="#detail/${today}" style="text-decoration:none;color:inherit;display:block">
         <h2 style="display:flex;justify-content:space-between">
-          <span>Today's readings</span>
+          <span>Today's readings${source ? ` · ${source}` : ""}</span>
           <span class="muted" style="font-size:11px">tap for detail →</span>
         </h2>
-        <div class="mini-grid">
-          ${miniTile("Readiness", o.readiness)}
-          ${miniTile("Sleep", o.sleep_score)}
-          ${miniTile("HRV", o.hrv_avg)}
-          ${miniTile("vO₂ max", o.vo2_max)}
-          ${miniTile("Stress hi", o.stress_high_min, " min")}
-          ${miniTile("Resilience", o.resilience_level, "", true)}
-        </div>
+        <div class="mini-grid">${tiles}</div>
       </a>
-      ${!det?.oura ? `<div class="muted" style="margin-top:10px">No Oura data for today yet.</div>` : ""}
-      <button id="btn-oura-sync" class="ghost small" style="margin-top:10px">Sync Oura now</button>
-      <span class="muted" id="oura-msg" style="margin-left:10px"></span>
+      ${!source ? `<div class="muted" style="margin-top:10px">No wearable data for today yet.</div>` : ""}
+      <div style="margin-top:10px">
+        <button id="btn-garmin-sync" class="ghost small">Sync Garmin now</button>
+        <button id="btn-oura-sync" class="ghost small" style="margin-left:6px">Sync Oura now</button>
+        <span class="muted" id="wearable-msg" style="margin-left:10px"></span>
+      </div>
     </div>`;
 
   const mealsCard = meals.length
@@ -316,6 +330,22 @@ async function view_detail(date) {
 
     ${d.scale_json ? renderScale(d.scale_json) : ""}
 
+    ${det.garmin ? `
+    <div class="card">
+      <h2>Garmin</h2>
+      ${rows(det.garmin, [
+        ["body_battery", "Body Battery"],
+        ["sleep_score", "Sleep score"],
+        ["hrv_ms", "HRV", " ms"],
+        ["resting_hr", "Resting HR", " bpm"],
+        ["stress_avg", "Stress avg"],
+        ["steps", "Steps"],
+        ["total_burn", "Total burn", " kcal"],
+        ["active_burn", "Active burn", " kcal"],
+      ])}
+    </div>` : ""}
+
+    ${det.oura ? `
     <div class="card">
       <h2>Oura</h2>
       ${rows(o, [
@@ -330,7 +360,7 @@ async function view_detail(date) {
         ["vo2_max", "vO₂ max"],
       ])}
       ${o.tags && o.tags.length ? `<div class="kv"><div class="k">Tags</div><div class="v">${o.tags.map((t) => escapeHTML(t.name || t.type || "")).join(", ")}</div></div>` : ""}
-    </div>
+    </div>` : ""}
 
     <div class="card">
       <h2>Meals — ${mealTotal} kcal</h2>
@@ -523,24 +553,28 @@ async function attachHandlers(root) {
   if (!hash) {
     const btn = root.querySelector("#btn-sub");
     if (btn) btn.onclick = () => subscribePush(root.querySelector("#sub-status"));
-    const sync = root.querySelector("#btn-oura-sync");
-    if (sync) {
-      sync.onclick = async () => {
-        const msg = root.querySelector("#oura-msg");
-        sync.disabled = true;
-        sync.textContent = "Syncing…";
+    const wireSync = (buttonId, endpoint, label) => {
+      const b = root.querySelector(buttonId);
+      if (!b) return;
+      b.onclick = async () => {
+        const msg = root.querySelector("#wearable-msg");
+        b.disabled = true;
+        const orig = b.textContent;
+        b.textContent = "Syncing…";
         try {
-          const r = await fetchJSON("/oura/sync", { method: "POST" });
-          msg.textContent = `Synced ${r.days_written} day(s).`;
+          const r = await fetchJSON(endpoint, { method: "POST" });
+          msg.textContent = `${label}: synced ${r.days_written} day(s).`;
           renderApp(document.getElementById("app"));
         } catch (e) {
-          msg.textContent = "Error: " + e.message;
+          msg.textContent = `${label} error: ${e.message}`;
         } finally {
-          sync.disabled = false;
-          sync.textContent = "Sync Oura now";
+          b.disabled = false;
+          b.textContent = orig;
         }
       };
-    }
+    };
+    wireSync("#btn-garmin-sync", "/garmin/sync", "Garmin");
+    wireSync("#btn-oura-sync", "/oura/sync", "Oura");
   }
 
   if (hash === "weight") {

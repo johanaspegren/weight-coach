@@ -14,6 +14,7 @@ def detail(date: str = Query(..., description="YYYY-MM-DD")):
     with connect() as c:
         daily = c.execute("SELECT * FROM daily WHERE date = ?", (date,)).fetchone()
         oura = c.execute("SELECT * FROM oura_raw WHERE date = ?", (date,)).fetchone()
+        garmin = c.execute("SELECT * FROM garmin_raw WHERE date = ?", (date,)).fetchone()
         meals = c.execute(
             "SELECT * FROM meals WHERE date = ? ORDER BY created_at ASC", (date,)
         ).fetchall()
@@ -21,19 +22,23 @@ def detail(date: str = Query(..., description="YYYY-MM-DD")):
             "SELECT * FROM workouts WHERE date = ? ORDER BY created_at ASC", (date,)
         ).fetchall()
 
-    oura_dict = dict(oura) if oura else None
-    if oura_dict:
-        for key in ("workouts_json", "tags_json"):
-            if oura_dict.get(key):
+    def _decode_json(d, keys):
+        for key in keys:
+            if d and d.get(key):
                 try:
-                    oura_dict[key.replace("_json", "")] = json.loads(oura_dict[key])
+                    d[key.replace("_json", "")] = json.loads(d[key])
                 except (json.JSONDecodeError, TypeError):
                     pass
+        return d
+
+    oura_dict = _decode_json(dict(oura), ("workouts_json", "tags_json")) if oura else None
+    garmin_dict = _decode_json(dict(garmin), ("workouts_json",)) if garmin else None
 
     return {
         "date": date,
         "daily": dict(daily) if daily else None,
         "oura": oura_dict,
+        "garmin": garmin_dict,
         "meals": [dict(m) for m in meals],
         "workouts": [dict(w) for w in workouts],
     }
