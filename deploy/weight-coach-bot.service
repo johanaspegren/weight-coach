@@ -6,7 +6,10 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=%h/dev/weight-coach
+ExecStartPre=/usr/bin/mkdir -p %h/dev/weight-coach/.run
 ExecStart=%h/dev/weight-coach/api/.venv/bin/python -m weight_coach.bot
+StandardOutput=append:%h/dev/weight-coach/.run/bot.log
+StandardError=append:%h/dev/weight-coach/.run/bot.log
 Restart=on-failure
 RestartSec=10
 

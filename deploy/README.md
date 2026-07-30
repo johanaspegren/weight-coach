@@ -64,6 +64,15 @@ journalctl --user -u weight-coach-bot.service -f
 journalctl --user -u weight-coach-api.service -n 200 --no-pager
 ```
 
+The unit files also append logs under the repo, which is useful on systems where
+the user journal is unavailable:
+
+```bash
+tail -n 200 ~/dev/weight-coach/.run/api.log
+tail -n 200 ~/dev/weight-coach/.run/worker.log
+tail -n 200 ~/dev/weight-coach/.run/bot.log
+```
+
 ## After a code change
 
 ```bash

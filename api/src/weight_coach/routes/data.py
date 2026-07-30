@@ -16,8 +16,18 @@ EXPORT_VERSION = 1
 EXPORT_TABLES = [
     "daily",
     "oura_raw",
-    "meals",
     "meal_templates",
+    "meals",
+    "checkins",
+    "coach_notes",
+    "workouts",
+]
+
+IMPORT_TABLES = [
+    "daily",
+    "oura_raw",
+    "meal_templates",
+    "meals",
     "checkins",
     "coach_notes",
     "workouts",
@@ -200,11 +210,13 @@ def import_json(
                 ]:
                     c.execute(f"DELETE FROM {_quote_ident(table)}")
 
-            for table, table_payload in tables.items():
-                if table not in known_tables:
-                    summary["ignored_tables"].append(table)
-                    continue
+            for table in sorted(set(tables) - known_tables):
+                summary["ignored_tables"].append(table)
 
+            for table in IMPORT_TABLES:
+                if table not in tables:
+                    continue
+                table_payload = tables[table]
                 rows = table_payload.get("rows", [])
                 if not isinstance(rows, list):
                     raise HTTPException(
@@ -226,7 +238,13 @@ def import_json(
                             status_code=400,
                             detail=f"{table} contains a non-object row",
                         )
-                    _insert_row(c, table, row, current_columns, pk_columns)
+                    try:
+                        _insert_row(c, table, row, current_columns, pk_columns)
+                    except sqlite3.DatabaseError as e:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Import failed in {table} row {count + 1}: {e}",
+                        ) from e
                     count += 1
                 summary["imported"][table] = count
 

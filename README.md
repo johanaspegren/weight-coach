@@ -3,6 +3,7 @@
 Personal AI-assisted weight and habit tracker. Runs on your own hardware, no cloud dependencies for the coaching loop.
 
 **Stack**
+
 - Python venv (FastAPI + APScheduler + SQLite) — the API, scheduler, and Discord bot
 - npm / Vite PWA — LAN-only web UI for charts and drilldowns
 - Ollama (on a beefier machine) — local LLM for meal-macro estimation
@@ -10,11 +11,13 @@ Personal AI-assisted weight and habit tracker. Runs on your own hardware, no clo
 - systemd — three units on the always-on host (`api`, `worker`, `bot`) + a nightly backup timer
 
 **Data sources**
+
 - **Oura ring** — daily readiness, sleep score, HRV, activity kcal, workouts, stress, resilience, vO₂ max, tags. Polled every morning; manual `Sync Oura now` button in the PWA.
 - **Cleverio Wifi Scale 2** (via Tuya Cloud) — weight + raw body-composition properties, polled every 5 min from the device shadow.
 - **Manual** — weight, meals, workouts, freetext nightly check-in via PWA or Discord slash commands.
 
 **Interaction layer**
+
 - **PWA** on your LAN for dashboard, drilldown per day, and analytics
 - **Discord bot** for mobile logging anywhere: `/weight`, `/log`, `/workout`, `/status`, plus a nightly 23:00 DM nudge
 
@@ -44,6 +47,7 @@ For local development everything can run on one Mac; the Pi is just the eventual
 ## Feature status
 
 **Built**
+
 - Data ingestion: Oura, Tuya scale, manual weight/meal/workout, freetext check-in
 - Meal estimator with template cache → Ollama → OpenAI → deferred, backfilled hourly
 - Dashboard: today In/Out/Net, week net, cumulative deficit, predicted vs actual kg, latest weight
@@ -55,6 +59,7 @@ For local development everything can run on one Mac; the Pi is just the eventual
 - macOS + Zscaler compatibility via `truststore.inject_into_ssl()`
 
 **Not yet (roadmap)**
+
 - LLM parsing of the full nightly check-in transcript (currently stored raw)
 - Meal template quick-picks surfaced in the UI
 - 14-day maintenance recalibration loop (`MAINTENANCE_KCAL` is dormant)
@@ -124,7 +129,7 @@ Or start the three application services together from the repo root:
 scripts/start-dev.sh
 ```
 
-Use `scripts/start-dev.sh --with-web` to start the Vite UI too, or `scripts/start-dev.sh --lan` to expose the dev UI to another device on the same LAN. Add `--reload` for API hot reload. Logs are written to `.run/`.
+Use `scripts/start-dev.sh --with-web` to start the Vite UI too, or add `--reload` for API hot reload. Logs are written to `.run/`.
 
 ## Deploy (Linux + systemd, e.g. RPi)
 
@@ -132,21 +137,21 @@ See [`deploy/README.md`](deploy/README.md) — three user-mode services (`api`, 
 
 ## Configuration cheatsheet (`.env`)
 
-| Key | What it does |
-|---|---|
-| `WC_DB_PATH` | SQLite path (default `./data/weight.db`) |
-| `WC_API_HOST`, `WC_API_PORT` | Where uvicorn binds |
-| `PROGRAM_START` | Anchors cumulative deficit calculations |
-| `MAINTENANCE_KCAL` | Starting guess for TDEE (dormant, will be recalibrated in Phase 3) |
-| `BMR_KCAL` | Used for "Out" fallback when Oura data is absent |
-| `OURA_TOKEN` | Oura personal access token — grant **all scopes** |
-| `TUYA_ENDPOINT` | Tuya cloud data center (Central Europe = `https://openapi.tuyaeu.com` for Nordic accounts) |
-| `TUYA_ACCESS_ID`, `TUYA_ACCESS_SECRET`, `TUYA_DEVICE_ID`, `TUYA_UID` | Tuya IoT Cloud project + scale |
-| `OLLAMA_URL`, `OLLAMA_MODEL` | Local LLM for meal estimation (default `qwen2.5:7b-instruct`) |
-| `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` | Cloud fallback for meal estimation |
-| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Web Push for the browser 23:00 nudge (optional if you use Discord) |
-| `DISCORD_TOKEN`, `DISCORD_USER_ID`, `DISCORD_GUILD_ID` | Discord bot |
-| `CHECKIN_HOUR`, `CHECKIN_MINUTE` | Time for the 23:00 DM/push |
+| Key                                                                          | What it does                                                                                |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `WC_DB_PATH`                                                               | SQLite path (default`./data/weight.db`)                                                   |
+| `WC_API_HOST`, `WC_API_PORT`                                             | Where uvicorn binds                                                                         |
+| `PROGRAM_START`                                                            | Anchors cumulative deficit calculations                                                     |
+| `MAINTENANCE_KCAL`                                                         | Starting guess for TDEE (dormant, will be recalibrated in Phase 3)                          |
+| `BMR_KCAL`                                                                 | Used for "Out" fallback when Oura data is absent                                            |
+| `OURA_TOKEN`                                                               | Oura personal access token — grant**all scopes**                                     |
+| `TUYA_ENDPOINT`                                                            | Tuya cloud data center (Central Europe =`https://openapi.tuyaeu.com` for Nordic accounts) |
+| `TUYA_ACCESS_ID`, `TUYA_ACCESS_SECRET`, `TUYA_DEVICE_ID`, `TUYA_UID` | Tuya IoT Cloud project + scale                                                              |
+| `OLLAMA_URL`, `OLLAMA_MODEL`                                             | Local LLM for meal estimation (default`qwen2.5:7b-instruct`)                              |
+| `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL`                    | Cloud fallback for meal estimation                                                          |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`               | Web Push for the browser 23:00 nudge (optional if you use Discord)                          |
+| `DISCORD_TOKEN`, `DISCORD_USER_ID`, `DISCORD_GUILD_ID`                 | Discord bot                                                                                 |
+| `CHECKIN_HOUR`, `CHECKIN_MINUTE`                                         | Time for the 23:00 DM/push                                                                  |
 
 ## Data export / import
 
