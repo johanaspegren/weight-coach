@@ -1,6 +1,9 @@
-# Deploy — Linux user-mode systemd
+# Deploy — Linux system-mode systemd (RPi)
 
-Assumes the repo is at `~/dev/weight-coach` and the venv is set up:
+Assumes:
+- Repo at `/home/pi/dev/weight-coach` (adjust unit files if your user isn't `pi`)
+- Venv at `api/.venv/`
+- `.env` at repo root
 
 ```bash
 cd ~/dev/weight-coach/api
@@ -10,63 +13,62 @@ pip install -e .
 cd ../web && npm install && npm run build
 ```
 
-## Run on boot
+## Run on boot (system services — reliable on headless Pi)
 
-User-mode systemd is the cleanest fit — no `sudo`, per-user isolation, easy `journalctl` access.
+These are **system-scoped** units (like bus-watchdog), not user-scoped. This is important on Raspberry Pi OS where user-mode systemd sometimes fails to come up cleanly at boot.
 
 ```bash
-# 1. Install the four unit files
-mkdir -p ~/.config/systemd/user
-cp deploy/weight-coach-*.service deploy/weight-coach-*.timer ~/.config/systemd/user/
-systemctl --user daemon-reload
+# 1. Install unit files
+sudo cp deploy/weight-coach-*.service deploy/weight-coach-*.timer /etc/systemd/system/
+sudo systemctl daemon-reload
 
 # 2. Enable + start everything
-systemctl --user enable --now \
+sudo systemctl enable --now \
     weight-coach-api.service \
     weight-coach-worker.service \
     weight-coach-bot.service \
     weight-coach-backup.timer
-
-# 3. Keep user services alive after logout / at boot without a login
-sudo loginctl enable-linger $USER
 ```
 
-Without `enable-linger`, user services stop when you log out and only restart when you next log in over SSH. With it, systemd keeps them running from boot regardless of who's logged in — this is what you want on a headless RPi.
-
-Reboot the Pi to verify:
+Reboot to verify:
 ```bash
 sudo reboot
 # after it comes back:
-systemctl --user status weight-coach-api weight-coach-worker weight-coach-bot
+sudo systemctl status weight-coach-api weight-coach-worker weight-coach-bot
 ```
 
 All three should be `active (running)`.
 
-The API service also serves the built web UI and listens on all LAN interfaces.
-From another device on the same network, open:
+## Migrating from the old user-mode setup
 
-```text
-http://<rpi-lan-ip>:8765/
+If you previously enabled these under `systemctl --user`, disable them first:
+
+```bash
+systemctl --user disable --now weight-coach-api weight-coach-worker weight-coach-bot weight-coach-backup.timer 2>/dev/null || true
+rm -f ~/.config/systemd/user/weight-coach-*.service ~/.config/systemd/user/weight-coach-*.timer
+systemctl --user daemon-reload
+# Optional (only if nothing else needs it):
+# sudo loginctl disable-linger $USER
 ```
+
+Then follow the "Run on boot" steps above.
 
 ## Check status / follow logs
 
 ```bash
-systemctl --user status weight-coach-api.service
-systemctl --user status weight-coach-worker.service
-systemctl --user status weight-coach-bot.service
+sudo systemctl status weight-coach-api.service
+sudo systemctl status weight-coach-worker.service
+sudo systemctl status weight-coach-bot.service
 
 # Follow live logs from any service:
-journalctl --user -u weight-coach-worker.service -f
-journalctl --user -u weight-coach-bot.service -f
+sudo journalctl -u weight-coach-worker.service -f
+sudo journalctl -u weight-coach-bot.service -f
 
 # See the last N lines including crashes:
-journalctl --user -u weight-coach-api.service -n 200 --no-pager
+sudo journalctl -u weight-coach-api.service -n 200 --no-pager
 ```
 
-The unit files also append logs under the repo, which is useful on systems where
-the user journal is unavailable:
-
+Also file-based logs at `.run/*.log` inside the repo:
 ```bash
 tail -n 200 ~/dev/weight-coach/.run/api.log
 tail -n 200 ~/dev/weight-coach/.run/worker.log
@@ -77,30 +79,30 @@ tail -n 200 ~/dev/weight-coach/.run/bot.log
 
 ```bash
 cd ~/dev/weight-coach
-git pull                       # or scp files across
+git pull
 source api/.venv/bin/activate
-pip install -e ./api           # if dependencies changed
-systemctl --user restart weight-coach-api weight-coach-worker weight-coach-bot
+pip install -e ./api    # if dependencies changed
+sudo systemctl restart weight-coach-api weight-coach-worker weight-coach-bot
 ```
 
 If the UI changed:
 ```bash
 cd ~/dev/weight-coach/web && npm run build
-systemctl --user restart weight-coach-api    # picks up new static files
+sudo systemctl restart weight-coach-api
 ```
 
 If a unit file changed:
 ```bash
 cd ~/dev/weight-coach
-cp deploy/weight-coach-*.service deploy/weight-coach-*.timer ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user restart weight-coach-api weight-coach-worker weight-coach-bot
+sudo cp deploy/weight-coach-*.service deploy/weight-coach-*.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl restart weight-coach-api weight-coach-worker weight-coach-bot
 ```
 
-## Generating VAPID keys (only needed if you use browser Web Push instead of Discord)
+## Generating VAPID keys (only needed for browser Web Push — Discord is easier)
 
 ```bash
 cd web && npx web-push generate-vapid-keys
 ```
 
-Paste the two keys into `.env` as `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`, restart the api + worker.
+Paste into `.env` as `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`, restart api + worker.

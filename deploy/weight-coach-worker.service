@@ -1,16 +1,19 @@
 [Unit]
-Description=weight-coach worker (APScheduler: Oura sync + nightly push)
-After=network.target
+Description=weight-coach worker (APScheduler: Oura/Garmin/Tuya sync + nightly push)
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/dev/weight-coach
-ExecStartPre=/usr/bin/mkdir -p %h/dev/weight-coach/.run
-ExecStart=%h/dev/weight-coach/api/.venv/bin/python -m weight_coach.worker
-StandardOutput=append:%h/dev/weight-coach/.run/worker.log
-StandardError=append:%h/dev/weight-coach/.run/worker.log
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/dev/weight-coach
+ExecStartPre=/usr/bin/mkdir -p /home/pi/dev/weight-coach/.run
+ExecStart=/home/pi/dev/weight-coach/api/.venv/bin/python -m weight_coach.worker
+StandardOutput=append:/home/pi/dev/weight-coach/.run/worker.log
+StandardError=append:/home/pi/dev/weight-coach/.run/worker.log
 Restart=on-failure
 RestartSec=5
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
