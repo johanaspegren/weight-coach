@@ -42,6 +42,13 @@ systemctl --user status weight-coach-api weight-coach-worker weight-coach-bot
 
 All three should be `active (running)`.
 
+The API service also serves the built web UI and listens on all LAN interfaces.
+From another device on the same network, open:
+
+```text
+http://<rpi-lan-ip>:8765/
+```
+
 ## Check status / follow logs
 
 ```bash
@@ -71,6 +78,14 @@ If the UI changed:
 ```bash
 cd ~/dev/weight-coach/web && npm run build
 systemctl --user restart weight-coach-api    # picks up new static files
+```
+
+If a unit file changed:
+```bash
+cd ~/dev/weight-coach
+cp deploy/weight-coach-*.service deploy/weight-coach-*.timer ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user restart weight-coach-api weight-coach-worker weight-coach-bot
 ```
 
 ## Generating VAPID keys (only needed if you use browser Web Push instead of Discord)

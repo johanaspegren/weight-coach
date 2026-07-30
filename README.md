@@ -124,7 +124,7 @@ Or start the three application services together from the repo root:
 scripts/start-dev.sh
 ```
 
-Use `scripts/start-dev.sh --with-web` to start the Vite UI too, or add `--reload` for API hot reload. Logs are written to `.run/`.
+Use `scripts/start-dev.sh --with-web` to start the Vite UI too, or `scripts/start-dev.sh --lan` to expose the dev UI to another device on the same LAN. Add `--reload` for API hot reload. Logs are written to `.run/`.
 
 ## Deploy (Linux + systemd, e.g. RPi)
 

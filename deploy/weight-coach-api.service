@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=%h/dev/weight-coach
-ExecStart=%h/dev/weight-coach/api/.venv/bin/uvicorn weight_coach.main:app --host 127.0.0.1 --port 8765
+ExecStart=%h/dev/weight-coach/api/.venv/bin/uvicorn weight_coach.main:app --host 0.0.0.0 --port 8765
 Restart=on-failure
 RestartSec=3
 

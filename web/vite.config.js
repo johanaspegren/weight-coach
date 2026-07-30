@@ -2,8 +2,8 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   server: {
-    host: "127.0.0.1",
-    port: 5173,
+    host: process.env.WC_WEB_HOST || "127.0.0.1",
+    port: Number(process.env.WC_WEB_PORT || 5173),
     strictPort: true,
     proxy: {
       "/weight": "http://127.0.0.1:8765",
