@@ -12,7 +12,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from .config import settings
 from .db import migrate
-from .providers import estimator, oura, tuya
+from .providers import estimator, garmin, oura, tuya
 from .push_send import send_all
 
 log = logging.getLogger(__name__)
@@ -45,6 +45,15 @@ def job_oura_sync() -> None:
         except Exception:
             log.exception("Oura sync failed")
     job_backfill_pending()
+
+
+def job_garmin_sync() -> None:
+    if not settings.garmin_email:
+        return
+    try:
+        garmin.sync(days=3)
+    except Exception:
+        log.exception("Garmin sync failed")
 
 
 def job_tuya_sync() -> None:
@@ -89,8 +98,16 @@ def main() -> None:
         id="tuya_sync",
         replace_existing=True,
     )
+    # Garmin every 20 min — enough to catch morning activity by the time you
+    # open the dashboard; not aggressive enough to trigger rate-limits.
+    sched.add_job(
+        job_garmin_sync,
+        CronTrigger(minute="7,27,47"),
+        id="garmin_sync",
+        replace_existing=True,
+    )
     log.info(
-        "worker up — checkin=%02d:%02d, oura=06:30, tuya=5min, backfill=hourly",
+        "worker up — checkin=%02d:%02d, oura=06:30, garmin=20min, tuya=5min, backfill=hourly",
         settings.checkin_hour,
         settings.checkin_minute,
     )

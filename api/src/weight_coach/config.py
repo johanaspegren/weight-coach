@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     maintenance_kcal: int = 2500
     bmr_kcal: int = 1700
 
+    garmin_email: str = ""
+    garmin_password: str = ""
+    garmin_tokenstore: str = "~/.garminconnect"
+
     tuya_endpoint: str = "https://openapi.tuyaeu.com"
     tuya_access_id: str = ""
     tuya_access_secret: str = ""

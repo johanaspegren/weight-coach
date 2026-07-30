@@ -17,6 +17,20 @@ CREATE TABLE IF NOT EXISTS daily (
     scale_json TEXT
 );
 
+CREATE TABLE IF NOT EXISTS garmin_raw (
+    date TEXT PRIMARY KEY,
+    body_battery INTEGER,       -- 0..100 (max of the day)
+    sleep_score INTEGER,        -- 0..100
+    hrv_ms REAL,                -- last-night HRV, ms
+    resting_hr INTEGER,         -- bpm
+    stress_avg INTEGER,         -- 0..100
+    total_burn INTEGER,         -- kcal
+    active_burn INTEGER,        -- kcal
+    steps INTEGER,
+    workouts_json TEXT,
+    fetched_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS oura_raw (
     date TEXT PRIMARY KEY,
     readiness INTEGER,

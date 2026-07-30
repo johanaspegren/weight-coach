@@ -13,6 +13,7 @@ export default defineConfig({
       "/workouts": "http://127.0.0.1:8765",
       "/data": "http://127.0.0.1:8765",
       "/oura": "http://127.0.0.1:8765",
+      "/garmin": "http://127.0.0.1:8765",
       "/tuya": "http://127.0.0.1:8765",
       "/push": "http://127.0.0.1:8765",
       "/health": "http://127.0.0.1:8765",

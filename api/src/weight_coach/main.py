@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .db import migrate
-from .routes import checkin, daily, data, meals, oura, push, tuya, weight, workouts
+from .routes import checkin, daily, data, garmin, meals, oura, push, tuya, weight, workouts
 
 
 def create_app() -> FastAPI:
@@ -26,6 +26,7 @@ def create_app() -> FastAPI:
     app.include_router(meals.router)
     app.include_router(workouts.router)
     app.include_router(oura.router)
+    app.include_router(garmin.router)
     app.include_router(tuya.router)
     app.include_router(push.router)
     app.include_router(data.router)
