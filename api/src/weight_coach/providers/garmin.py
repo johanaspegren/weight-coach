@@ -194,4 +194,6 @@ def sync(days: int = 3) -> int:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    from ..db import migrate
+    migrate()
     print(f"Wrote {sync(days=3)} day(s)")
