@@ -39,6 +39,51 @@ def detail(date: str = Query(..., description="YYYY-MM-DD")):
     }
 
 
+@router.get("/history")
+def history(days: int = Query(default=7, ge=1, le=365)):
+    """Time-series for charting. Fills gaps so the client can plot N points regardless of missing rows."""
+    from datetime import date as _date, timedelta
+
+    with connect() as c:
+        rows = c.execute(
+            "SELECT * FROM daily ORDER BY date DESC LIMIT ?", (days,)
+        ).fetchall()
+        wo_rows = c.execute(
+            "SELECT date, COALESCE(SUM(kcal_burn), 0) AS s FROM workouts GROUP BY date"
+        ).fetchall()
+    workouts_by_date = {r["date"]: int(r["s"]) for r in wo_rows}
+
+    def kcal_out_for(r):
+        if r["kcal_out_est"] is not None:
+            return r["kcal_out_est"]
+        wo = workouts_by_date.get(r["date"], 0)
+        return settings.bmr_kcal + wo if wo else None
+
+    by_date = {r["date"]: r for r in rows}
+
+    end = _date.today()
+    series = []
+    for i in range(days - 1, -1, -1):
+        d = (end - timedelta(days=i)).isoformat()
+        r = by_date.get(d)
+        if r is None:
+            series.append({
+                "date": d, "weight_kg": None, "kcal_in": None,
+                "kcal_out": None, "net": None,
+            })
+            continue
+        out = kcal_out_for(r)
+        net = None if (r["kcal_in_est"] is None or out is None) else r["kcal_in_est"] - out
+        series.append({
+            "date": d,
+            "weight_kg": r["weight_kg"],
+            "kcal_in": r["kcal_in_est"],
+            "kcal_out": out,
+            "net": net,
+        })
+    return series
+
+
 @router.get("")
 def list_daily(limit: int = Query(default=90, ge=1, le=365)):
     with connect() as c:

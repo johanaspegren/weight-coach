@@ -19,6 +19,86 @@ function fmtPlain(n) {
   return `${Math.round(n).toLocaleString()} kcal`;
 }
 
+function chartsCard(history) {
+  if (!history || !history.length) return "";
+  return `
+    <div class="card">
+      <h2>Last 7 days</h2>
+      <div class="chart-block">
+        <div class="chart-title">Weight (kg)</div>
+        ${sparkline(history.map((d) => d.weight_kg), { color: "#e5e7eb", showPoints: true })}
+      </div>
+      <div class="chart-block">
+        <div class="chart-title">Net kcal (deficit / surplus)</div>
+        ${bars(history.map((d) => ({ date: d.date, value: d.net })))}
+      </div>
+    </div>
+  `;
+}
+
+function sparkline(values, { color = "#e5e7eb", showPoints = false } = {}) {
+  const W = 320, H = 90, PAD_X = 8, PAD_Y = 14;
+  const numeric = values.map((v) => (v === null || v === undefined ? null : +v));
+  const nums = numeric.filter((v) => v !== null);
+  if (!nums.length) return `<div class="muted">no data</div>`;
+  const min = Math.min(...nums), max = Math.max(...nums);
+  const span = max - min || 1;
+  const step = (W - 2 * PAD_X) / Math.max(numeric.length - 1, 1);
+  const y = (v) => PAD_Y + (H - 2 * PAD_Y) * (1 - (v - min) / span);
+  const pts = numeric.map((v, i) => (v === null ? null : [PAD_X + i * step, y(v)]));
+  // Build one polyline per contiguous non-null segment
+  const segs = [];
+  let cur = [];
+  for (const p of pts) {
+    if (p === null) { if (cur.length) { segs.push(cur); cur = []; } }
+    else cur.push(p);
+  }
+  if (cur.length) segs.push(cur);
+  const paths = segs.map((s) =>
+    `<polyline fill="none" stroke="${color}" stroke-width="2" points="${s.map((p) => p.join(",")).join(" ")}"/>`
+  ).join("");
+  const dots = showPoints ? pts.map((p) =>
+    p ? `<circle cx="${p[0]}" cy="${p[1]}" r="2.5" fill="${color}"/>` : ""
+  ).join("") : "";
+  return `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">
+      <text x="${PAD_X}" y="12" fill="#9ca3af" font-size="10">${max.toFixed(1)}</text>
+      <text x="${PAD_X}" y="${H - 2}" fill="#9ca3af" font-size="10">${min.toFixed(1)}</text>
+      ${paths}${dots}
+    </svg>
+  `;
+}
+
+function bars(entries) {
+  const W = 320, H = 90, PAD_X = 8, PAD_Y = 14, GAP = 3;
+  const values = entries.map((e) => (e.value === null || e.value === undefined ? 0 : e.value));
+  const abs = values.map((v) => Math.abs(v));
+  const max = Math.max(1, ...abs);
+  const barW = (W - 2 * PAD_X - GAP * (entries.length - 1)) / entries.length;
+  const mid = H / 2;
+  const half = mid - PAD_Y;
+  const bars = entries.map((e, i) => {
+    const v = e.value;
+    if (v === null || v === undefined) return "";
+    const h = Math.abs(v) / max * half;
+    const x = PAD_X + i * (barW + GAP);
+    const [y, color] = v < 0
+      ? [mid, "#34d399"]           // deficit — green, below the line
+      : [mid - h, "#f87171"];      // surplus — red, above
+    return `<rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="${color}" rx="2"/>`;
+  }).join("");
+  const lastLbl = entries[entries.length - 1]?.date?.slice(5) || "";
+  const firstLbl = entries[0]?.date?.slice(5) || "";
+  return `
+    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">
+      <line x1="${PAD_X}" x2="${W - PAD_X}" y1="${mid}" y2="${mid}" stroke="#374151" stroke-width="1"/>
+      ${bars}
+      <text x="${PAD_X}" y="${H - 2}" fill="#9ca3af" font-size="10">${firstLbl}</text>
+      <text x="${W - PAD_X}" y="${H - 2}" fill="#9ca3af" font-size="10" text-anchor="end">${lastLbl}</text>
+    </svg>
+  `;
+}
+
 function miniTile(label, value, suffix = "", isText = false) {
   const has = value !== null && value !== undefined && value !== "";
   const shown = has ? (isText ? String(value) : `${Math.round(Number(value) * 10) / 10}${suffix}`) : "—";
@@ -32,11 +112,12 @@ function kcalClass(n) {
 
 async function view_home() {
   const today = todayISO();
-  const [s, meals, workouts, det] = await Promise.all([
+  const [s, meals, workouts, det, history] = await Promise.all([
     fetchJSON("/daily/summary"),
     fetchJSON(`/meals?date=${today}`).catch(() => []),
     fetchJSON(`/workouts?date=${today}`).catch(() => []),
     fetchJSON(`/daily/detail?date=${today}`).catch(() => null),
+    fetchJSON("/daily/history?days=7").catch(() => []),
   ]);
 
   const o = det?.oura || {};
@@ -119,6 +200,7 @@ async function view_home() {
       </div>
       <div class="muted" style="margin-top:10px">This week net: <span class="${kcalClass(s.week_deficit_kcal)}">${fmtKcal(s.week_deficit_kcal)}</span></div>
     </div>
+    ${chartsCard(history)}
     ${readingsCard}
     ${workoutsCard}
     ${mealsCard}

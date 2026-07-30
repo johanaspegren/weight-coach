@@ -110,5 +110,16 @@ button.small { width: auto; padding: 4px 10px; font-size: 12px; margin-top: 0; }
   border-bottom: 1px solid var(--border);
 }
 .kv:last-child { border-bottom: none; }
+
+.chart-block { margin: 12px 0; }
+.chart-block:first-child { margin-top: 0; }
+.chart-block:last-child { margin-bottom: 0; }
+.chart-title {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
 .kv .k { color: var(--muted); font-size: 13px; }
 .kv .v { font-weight: 500; }
