@@ -21,18 +21,16 @@ def main() -> None:
     os.makedirs(tokenstore, exist_ok=True)
 
     g = Garmin(email=email, password=password, is_cn=False, prompt_mfa=lambda: input("MFA code: "))
-    result = g.login()
-    print(f"login → {result!r}")
-    g.garth.dump(tokenstore)
+    # Passing the tokenstore path makes garminconnect both authenticate AND persist
+    # tokens to that directory in one call.
+    g.login(tokenstore)
     print(f"Tokens cached to {tokenstore}")
 
-    # Sanity check
-    info = g.get_user_summary(g.get_full_name() and "") if False else None
     try:
         full = g.get_full_name()
         print(f"Logged in as: {full}")
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"(sanity check failed: {e})")
 
 
 if __name__ == "__main__":

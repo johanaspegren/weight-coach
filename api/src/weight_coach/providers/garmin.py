@@ -45,8 +45,7 @@ def _client() -> Garmin | None:
         pass
     # Fallback: full re-login (may prompt for MFA in a terminal; won't work from systemd)
     try:
-        g.login()
-        g.garth.dump(_tokenstore())
+        g.login(_tokenstore())
         return g
     except (GarminConnectAuthenticationError, GarminConnectConnectionError) as e:
         log.warning("Garmin login failed: %s — run garmin_login once", e)
