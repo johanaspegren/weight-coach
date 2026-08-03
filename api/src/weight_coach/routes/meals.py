@@ -32,7 +32,7 @@ def _resum_daily_kcal_in(conn, day: str) -> None:
 @router.post("/estimate")
 def estimate_meal(body: EstimateIn):
     """Look up macros for a meal description via template cache, then Ollama."""
-    return estimator.estimate(body.description)
+    return estimator.estimate(body.description, caller="api.meals.estimate")
 
 
 @router.post("")
@@ -47,7 +47,7 @@ def add_meal(entry: MealIn):
 
     # If the user didn't supply kcal, try estimator inline; if that fails, defer.
     if kcal is None:
-        est = estimator.estimate(entry.description)
+        est = estimator.estimate(entry.description, caller="api.meals.add")
         if est["kcal"] is not None:
             kcal = est["kcal"]
             protein_g = protein_g if protein_g is not None else est["protein_g"]

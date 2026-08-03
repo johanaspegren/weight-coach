@@ -312,7 +312,7 @@ async def cmd_log(
         return await _deny(interaction)
     cat = category.value if category else "lunch"
     await interaction.response.defer(thinking=True)
-    est = await asyncio.to_thread(estimator.estimate, text)
+    est = await asyncio.to_thread(estimator.estimate, text, caller="discord.log")
     kcal = est.get("kcal")
     src = est.get("source")
     body = (f"**{text}**\n"

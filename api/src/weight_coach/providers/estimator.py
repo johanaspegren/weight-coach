@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from uuid import uuid4
 from datetime import datetime
 from typing import TypedDict
 
@@ -96,26 +97,58 @@ JSON:"""
 _JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 
 
+def _short(text: str, max_len: int = 220) -> str:
+    text = (text or "").replace("\n", "\\n")
+    if len(text) <= max_len:
+        return text
+    return text[:max_len] + "..."
+
+
 def _extract_json_object(raw: str) -> str | None:
     """Grab the first {...} substring if the model wrapped it in prose."""
     m = _JSON_OBJ_RE.search(raw)
     return m.group(0) if m else None
 
 
-def _parse_llm_json(raw: str, model_name: str) -> MealEstimate | None:
+def _parse_llm_json(
+    raw: str,
+    model_name: str,
+    *,
+    provider: str = "unknown",
+    trace_id: str = "-",
+) -> MealEstimate | None:
     try:
         data = json.loads(raw)
     except (json.JSONDecodeError, ValueError):
         salvaged = _extract_json_object(raw)
         if not salvaged:
-            log.warning("estimator returned unparseable output from %s: %r", model_name, raw[:200])
+            log.warning(
+                "llm_trace[%s] parse failed provider=%s model=%s raw=%r",
+                trace_id,
+                provider,
+                model_name,
+                _short(raw),
+            )
             return None
         try:
             data = json.loads(salvaged)
         except (json.JSONDecodeError, ValueError):
-            log.warning("estimator salvage failed from %s: %r", model_name, salvaged[:200])
+            log.warning(
+                "llm_trace[%s] salvage parse failed provider=%s model=%s salvaged=%r",
+                trace_id,
+                provider,
+                model_name,
+                _short(salvaged),
+            )
             return None
     if data.get("kcal") is None:
+        log.warning(
+            "llm_trace[%s] parsed JSON missing kcal provider=%s model=%s payload=%r",
+            trace_id,
+            provider,
+            model_name,
+            _short(json.dumps(data)),
+        )
         return None
 
     def _num(k, cast):
@@ -138,14 +171,29 @@ def _parse_llm_json(raw: str, model_name: str) -> MealEstimate | None:
     )
 
 
-def _ollama_estimate(description: str) -> MealEstimate | None:
-    for base in settings.ollama_url_candidates:
+def _ollama_estimate(description: str, *, trace_id: str = "-") -> MealEstimate | None:
+    candidates = settings.ollama_targets
+    log.info(
+        "llm_trace[%s] provider=ollama candidates=%d targets=%s",
+        trace_id,
+        len(candidates),
+        candidates,
+    )
+    for idx, (base, model_name) in enumerate(candidates, start=1):
         url = f"{base}/api/generate"
+        log.info(
+            "llm_trace[%s] provider=ollama attempt=%d/%d url=%s model=%s",
+            trace_id,
+            idx,
+            len(candidates),
+            url,
+            model_name,
+        )
         try:
             r = httpx.post(
                 url,
                 json={
-                    "model": settings.ollama_model,
+                    "model": model_name,
                     "prompt": PROMPT.replace("{description}", description),
                     "stream": False,
                     "format": "json",
@@ -155,25 +203,58 @@ def _ollama_estimate(description: str) -> MealEstimate | None:
                 timeout=120,
             )
         except httpx.HTTPError as e:
-            log.warning("ollama connect failed at %s: %s", url, e)
+            log.warning("llm_trace[%s] provider=ollama connect failed url=%s err=%r", trace_id, url, e)
             continue
         if r.status_code != 200:
-            log.warning("ollama %s @ %s → HTTP %s: %s", settings.ollama_model, base, r.status_code, r.text[:300])
+            log.warning(
+                "llm_trace[%s] provider=ollama HTTP %s url=%s body=%r",
+                trace_id,
+                r.status_code,
+                url,
+                _short(r.text, 300),
+            )
             continue
-        raw = r.json().get("response", "").strip()
-        log.info("ollama %s @ %s raw response: %s", settings.ollama_model, base, raw[:200])
-        parsed = _parse_llm_json(raw, settings.ollama_model)
+        try:
+            payload = r.json()
+        except ValueError:
+            log.warning(
+                "llm_trace[%s] provider=ollama invalid JSON envelope url=%s body=%r",
+                trace_id,
+                url,
+                _short(r.text, 300),
+            )
+            continue
+        raw = (payload.get("response") or "").strip()
+        log.info("llm_trace[%s] provider=ollama raw=%r", trace_id, _short(raw))
+        parsed = _parse_llm_json(
+            raw,
+            model_name,
+            provider="ollama",
+            trace_id=trace_id,
+        )
         if parsed is not None:
+            log.info(
+                "llm_trace[%s] provider=ollama success kcal=%s protein_g=%s carbs_g=%s fat_g=%s",
+                trace_id,
+                parsed["kcal"],
+                parsed["protein_g"],
+                parsed["carbs_g"],
+                parsed["fat_g"],
+            )
             return parsed
+        log.warning("llm_trace[%s] provider=ollama parse returned None url=%s", trace_id, url)
     return None
 
 
-def _openai_estimate(description: str) -> MealEstimate | None:
+def _openai_estimate(description: str, *, trace_id: str = "-") -> MealEstimate | None:
     if not settings.openai_api_key:
+        log.info("llm_trace[%s] provider=openai skipped reason=no_api_key", trace_id)
         return None
+    url = f"{settings.openai_base_url}/chat/completions"
+    log.info("llm_trace[%s] provider=openai url=%s model=%s", trace_id, url, settings.openai_model)
     try:
         r = httpx.post(
-            f"{settings.openai_base_url}/chat/completions",
+            url,
             headers={"Authorization": f"Bearer {settings.openai_api_key}"},
             json={
                 "model": settings.openai_model,
@@ -186,12 +267,46 @@ def _openai_estimate(description: str) -> MealEstimate | None:
             },
             timeout=30,
         )
-        r.raise_for_status()
-        raw = r.json()["choices"][0]["message"]["content"]
-    except (httpx.HTTPError, KeyError, IndexError) as e:
-        log.warning("openai estimate failed: %s", e)
+    except httpx.HTTPError as e:
+        log.warning("llm_trace[%s] provider=openai request failed err=%r", trace_id, e)
         return None
-    return _parse_llm_json(raw, settings.openai_model)
+    if r.status_code >= 400:
+        log.warning(
+            "llm_trace[%s] provider=openai HTTP %s url=%s body=%r",
+            trace_id,
+            r.status_code,
+            url,
+            _short(r.text, 300),
+        )
+        return None
+    try:
+        payload = r.json()
+        raw = payload["choices"][0]["message"]["content"]
+    except (ValueError, KeyError, IndexError) as e:
+        log.warning(
+            "llm_trace[%s] provider=openai invalid response err=%r body=%r",
+            trace_id,
+            e,
+            _short(r.text, 300),
+        )
+        return None
+    log.info("llm_trace[%s] provider=openai raw=%r", trace_id, _short(raw))
+    parsed = _parse_llm_json(
+        raw,
+        settings.openai_model,
+        provider="openai",
+        trace_id=trace_id,
+    )
+    if parsed is not None:
+        log.info(
+            "llm_trace[%s] provider=openai success kcal=%s protein_g=%s carbs_g=%s fat_g=%s",
+            trace_id,
+            parsed["kcal"],
+            parsed["protein_g"],
+            parsed["carbs_g"],
+            parsed["fat_g"],
+        )
+    return parsed
 
 
 def _pending_shell() -> MealEstimate:
@@ -201,11 +316,20 @@ def _pending_shell() -> MealEstimate:
     )
 
 
-def estimate(description: str) -> MealEstimate:
+def estimate(description: str, *, caller: str = "unknown") -> MealEstimate:
     """Try template → Ollama → OpenAI. If all fail, return a 'pending' shell
     so the caller can save the meal now and retry later from the worker."""
+    trace_id = uuid4().hex[:8]
+    log.info(
+        "llm_trace[%s] estimate start caller=%s desc_len=%d desc=%r",
+        trace_id,
+        caller,
+        len(description or ""),
+        _short(description or "", 180),
+    )
     tpl = find_template(description)
     if tpl and tpl.get("kcal") is not None:
+        log.info("llm_trace[%s] template hit template_id=%s kcal=%s", trace_id, tpl.get("id"), tpl.get("kcal"))
         return MealEstimate(
             kcal=tpl["kcal"],
             protein_g=tpl["protein_g"],
@@ -217,11 +341,23 @@ def estimate(description: str) -> MealEstimate:
             model=None,
         )
 
-    for provider in (_ollama_estimate, _openai_estimate):
-        est = provider(description)
+    log.info("llm_trace[%s] template miss; trying providers=ollama,openai", trace_id)
+    for provider_name, provider in (("ollama", _ollama_estimate), ("openai", _openai_estimate)):
+        log.info("llm_trace[%s] trying provider=%s", trace_id, provider_name)
+        est = provider(description, trace_id=trace_id)
         if est is not None:
+            log.info(
+                "llm_trace[%s] estimate success provider=%s source=%s model=%s kcal=%s",
+                trace_id,
+                provider_name,
+                est.get("source"),
+                est.get("model"),
+                est.get("kcal"),
+            )
             return est
+        log.warning("llm_trace[%s] provider=%s returned None", trace_id, provider_name)
 
+    log.warning("llm_trace[%s] all providers failed; returning pending", trace_id)
     return _pending_shell()
 
 
@@ -238,7 +374,7 @@ def retry_pending() -> int:
     dates_touched: set[str] = set()
 
     for row in rows:
-        est = estimate(row["raw_text"] or "")
+        est = estimate(row["raw_text"] or "", caller="worker.retry_pending")
         if est["kcal"] is None:
             continue
         tid = bump_template(
