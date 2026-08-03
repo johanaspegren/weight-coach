@@ -139,29 +139,33 @@ def _parse_llm_json(raw: str, model_name: str) -> MealEstimate | None:
 
 
 def _ollama_estimate(description: str) -> MealEstimate | None:
-    url = f"{settings.ollama_url}/api/generate"
-    try:
-        r = httpx.post(
-            url,
-            json={
-                "model": settings.ollama_model,
-                "prompt": PROMPT.replace("{description}", description),
-                "stream": False,
-                "format": "json",
-                "think": False,  # disable reasoning for models that support it
-                "options": {"temperature": 0.2, "num_predict": 256},
-            },
-            timeout=120,
-        )
-    except httpx.HTTPError as e:
-        log.warning("ollama connect failed at %s: %s", url, e)
-        return None
-    if r.status_code != 200:
-        log.warning("ollama %s → HTTP %s: %s", settings.ollama_model, r.status_code, r.text[:300])
-        return None
-    raw = r.json().get("response", "").strip()
-    log.info("ollama %s raw response: %s", settings.ollama_model, raw[:200])
-    return _parse_llm_json(raw, settings.ollama_model)
+    for base in settings.ollama_url_candidates:
+        url = f"{base}/api/generate"
+        try:
+            r = httpx.post(
+                url,
+                json={
+                    "model": settings.ollama_model,
+                    "prompt": PROMPT.replace("{description}", description),
+                    "stream": False,
+                    "format": "json",
+                    "think": False,  # disable reasoning for models that support it
+                    "options": {"temperature": 0.2, "num_predict": 256},
+                },
+                timeout=120,
+            )
+        except httpx.HTTPError as e:
+            log.warning("ollama connect failed at %s: %s", url, e)
+            continue
+        if r.status_code != 200:
+            log.warning("ollama %s @ %s → HTTP %s: %s", settings.ollama_model, base, r.status_code, r.text[:300])
+            continue
+        raw = r.json().get("response", "").strip()
+        log.info("ollama %s @ %s raw response: %s", settings.ollama_model, base, raw[:200])
+        parsed = _parse_llm_json(raw, settings.ollama_model)
+        if parsed is not None:
+            return parsed
+    return None
 
 
 def _openai_estimate(description: str) -> MealEstimate | None:

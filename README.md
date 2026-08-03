@@ -147,7 +147,7 @@ See [`deploy/README.md`](deploy/README.md) — three user-mode services (`api`, 
 | `OURA_TOKEN`                                                               | Oura personal access token — grant**all scopes**                                     |
 | `TUYA_ENDPOINT`                                                            | Tuya cloud data center (Central Europe =`https://openapi.tuyaeu.com` for Nordic accounts) |
 | `TUYA_ACCESS_ID`, `TUYA_ACCESS_SECRET`, `TUYA_DEVICE_ID`, `TUYA_UID` | Tuya IoT Cloud project + scale                                                              |
-| `OLLAMA_URL`, `OLLAMA_MODEL`                                             | Local LLM for meal estimation (default`qwen2.5:7b-instruct`)                              |
+| `OLLAMA_URL`, `OLLAMA_URLS`, `OLLAMA_MODEL`                               | Local LLM for meal estimation; `OLLAMA_URLS` tries endpoints in order (e.g. homeAI then localhost) |
 | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL`                    | Cloud fallback for meal estimation                                                          |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`               | Web Push for the browser 23:00 nudge (optional if you use Discord)                          |
 | `DISCORD_TOKEN`, `DISCORD_USER_ID`, `DISCORD_GUILD_ID`                 | Discord bot                                                                                 |

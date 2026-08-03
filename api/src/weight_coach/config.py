@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     discord_guild_id: str = ""
 
     ollama_url: str = "http://localhost:11434"
+    ollama_urls: str = "http://homeai.local:11434,http://localhost:11434"
     ollama_model: str = "gemma4:e2b"
 
     openai_api_key: str = ""
@@ -62,6 +63,23 @@ class Settings(BaseSettings):
     def web_dist(self) -> Path:
         p = Path(self.wc_web_dist)
         return p if p.is_absolute() else (REPO_ROOT / p).resolve()
+
+    @property
+    def ollama_url_candidates(self) -> list[str]:
+        urls: list[str] = []
+        if self.ollama_urls.strip():
+            urls.extend(u.strip().rstrip("/") for u in self.ollama_urls.split(",") if u.strip())
+        if self.ollama_url.strip():
+            urls.append(self.ollama_url.strip().rstrip("/"))
+
+        # Deduplicate while preserving order.
+        seen: set[str] = set()
+        out: list[str] = []
+        for u in urls:
+            if u not in seen:
+                seen.add(u)
+                out.append(u)
+        return out
 
 
 settings = Settings()
