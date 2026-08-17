@@ -16,6 +16,7 @@ EXPORT_VERSION = 1
 EXPORT_TABLES = [
     "daily",
     "oura_raw",
+    "garmin_raw",
     "meal_templates",
     "meals",
     "checkins",
@@ -23,15 +24,7 @@ EXPORT_TABLES = [
     "workouts",
 ]
 
-IMPORT_TABLES = [
-    "daily",
-    "oura_raw",
-    "meal_templates",
-    "meals",
-    "checkins",
-    "coach_notes",
-    "workouts",
-]
+IMPORT_TABLES = EXPORT_TABLES
 
 
 def _utc_now() -> str:

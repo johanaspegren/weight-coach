@@ -135,6 +135,51 @@ Use `scripts/start-dev.sh --with-web` to start the Vite UI too, or add `--reload
 
 See [`deploy/README.md`](deploy/README.md) — three user-mode services (`api`, `worker`, `bot`) + a nightly SQLite backup timer, plus the one-liner (`sudo loginctl enable-linger $USER`) that makes them survive reboots on a headless Pi.
 
+## Mobile / remote access — Tailscale
+
+The PWA is served on the Pi's LAN, so straight out of the box it only works when the phone is on your home WiFi. To reach it from anywhere (4G, hotels, coffee shops) without exposing the Pi to the public internet, run **Tailscale** on both the Pi and your phone. Traffic goes over an encrypted WireGuard mesh; nothing is publicly reachable.
+
+Setup (~10 min):
+
+```bash
+# on the Pi
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+```
+
+- Sign in via the printed URL (free personal plan)
+- Install the Tailscale app on your Android phone with the same account
+- On the Tailscale admin console (`https://login.tailscale.com/admin/dns`) enable **MagicDNS** and **HTTPS Certificates**
+
+Issue a Let's Encrypt cert on the Pi:
+
+```bash
+sudo tailscale cert hallway-server.tail7bd556.ts.net   # substitute your machine's FQDN
+sudo mkdir -p /etc/tailscale-certs
+sudo mv hallway-server.tail7bd556.ts.net.* /etc/tailscale-certs/
+sudo chown pi:pi /etc/tailscale-certs/*
+sudo chmod 640 /etc/tailscale-certs/*
+```
+
+Update `deploy/weight-coach-api.service` `ExecStart` to serve HTTPS on 8443:
+
+```
+ExecStart=/home/pi/dev/weight-coach/api/.venv/bin/uvicorn weight_coach.main:app \
+    --host 0.0.0.0 --port 8443 \
+    --ssl-certfile /etc/tailscale-certs/hallway-server.tail7bd556.ts.net.crt \
+    --ssl-keyfile  /etc/tailscale-certs/hallway-server.tail7bd556.ts.net.key
+```
+
+Renewal — Let's Encrypt certs expire every 90 days, so add a monthly cron on the Pi (`sudo crontab -e`):
+
+```
+0 3 1 * *  /usr/bin/tailscale cert --cert-file /etc/tailscale-certs/hallway-server.tail7bd556.ts.net.crt --key-file /etc/tailscale-certs/hallway-server.tail7bd556.ts.net.key hallway-server.tail7bd556.ts.net && systemctl restart weight-coach-api
+```
+
+Bookmark on the phone: `https://hallway-server.tail7bd556.ts.net:8443/` → Chrome menu → **Add to Home Screen**. From then on you tap an icon; the ugly URL is invisible.
+
+**Note on Tailscale + Certificate Transparency:** the machine's FQDN gets published to public CT logs (a Let's Encrypt requirement). The `tail7bd556` suffix is deliberately obfuscated by Tailscale so it doesn't leak your identity, but avoid embarrassing hostnames. Nothing about traffic or content is exposed — only the name is public. If this matters, plain HTTP over Tailscale is a valid alternative since Tailscale itself is WireGuard-encrypted end-to-end.
+
 ## Configuration cheatsheet (`.env`)
 
 | Key                                                                          | What it does                                                                                |
