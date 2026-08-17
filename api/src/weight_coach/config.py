@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     ollama_model: str = "gemma4:12b"
     ollama_alt_url: str = ""
     ollama_alt_model: str = ""
+    # Vision-capable model for meal-photo estimation (defaults to qwen3-vl:8b
+    # which is already pulled on the homeAI box). Uses the primary ollama_url.
+    ollama_vision_model: str = "qwen3-vl:8b"
 
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"

@@ -309,6 +309,98 @@ def _openai_estimate(description: str, *, trace_id: str = "-") -> MealEstimate |
     return parsed
 
 
+VISION_PROMPT = """Look at this meal photo. Estimate what's on the plate and output ONE JSON object and NOTHING else. No thinking, no reasoning, no preamble, no code fences, no explanation. Just the JSON.
+
+Schema:
+{"kcal": integer, "protein_g": number, "carbs_g": number, "fat_g": number, "food_groups": "comma-separated tags from: protein, grain, veg, fruit, dairy, fat, alcohol, sweets, other", "description": "short human name for this meal (e.g. 'chicken salad with feta')"}
+
+Give realistic estimates for the portion shown. If unclear, assume a typical adult serving. Be realistic, not generous.
+JSON:"""
+
+
+def _ollama_vision(image_b64: str, *, trace_id: str = "-") -> tuple[MealEstimate | None, str | None]:
+    """Call Ollama with an image; return (estimate, described-name)."""
+    base = settings.ollama_url.strip().rstrip("/")
+    if not base:
+        log.info("llm_trace[%s] provider=ollama_vision skipped: no ollama_url", trace_id)
+        return None, None
+    model_name = settings.ollama_vision_model.strip() or "qwen3-vl:8b"
+    url = f"{base}/api/generate"
+    log.info("llm_trace[%s] provider=ollama_vision url=%s model=%s", trace_id, url, model_name)
+    try:
+        r = httpx.post(
+            url,
+            json={
+                "model": model_name,
+                "prompt": VISION_PROMPT,
+                "images": [image_b64],
+                "stream": False,
+                "format": "json",
+                "options": {"temperature": 0.2, "num_predict": 300},
+            },
+            timeout=180,
+        )
+    except httpx.HTTPError as e:
+        log.warning("llm_trace[%s] provider=ollama_vision connect failed err=%r", trace_id, e)
+        return None, None
+    if r.status_code != 200:
+        log.warning(
+            "llm_trace[%s] provider=ollama_vision HTTP %s body=%r",
+            trace_id, r.status_code, _short(r.text, 300),
+        )
+        return None, None
+    try:
+        raw = (r.json().get("response") or "").strip()
+    except ValueError:
+        log.warning("llm_trace[%s] provider=ollama_vision non-JSON envelope", trace_id)
+        return None, None
+    log.info("llm_trace[%s] provider=ollama_vision raw=%r", trace_id, _short(raw))
+
+    # Vision output includes a "description" the plain estimator doesn't; parse manually first.
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        salvaged = _extract_json_object(raw)
+        if not salvaged:
+            return None, None
+        try:
+            data = json.loads(salvaged)
+        except (json.JSONDecodeError, ValueError):
+            return None, None
+    if data.get("kcal") is None:
+        return None, None
+    description = data.get("description") if isinstance(data.get("description"), str) else None
+    est = MealEstimate(
+        kcal=int(data["kcal"]) if data.get("kcal") is not None else None,
+        protein_g=float(data["protein_g"]) if data.get("protein_g") is not None else None,
+        carbs_g=float(data["carbs_g"]) if data.get("carbs_g") is not None else None,
+        fat_g=float(data["fat_g"]) if data.get("fat_g") is not None else None,
+        food_groups=data.get("food_groups") if isinstance(data.get("food_groups"), str) else None,
+        source="llm",
+        template_id=None,
+        model=model_name,
+    )
+    return est, description
+
+
+def estimate_from_image(image_bytes: bytes) -> tuple[MealEstimate, str | None]:
+    """Take an image, return (MealEstimate, best-effort description).
+    Falls through to a pending shell if Ollama vision is unavailable."""
+    import base64
+
+    trace_id = uuid4().hex[:8]
+    b64 = base64.b64encode(image_bytes).decode("ascii")
+    log.info(
+        "llm_trace[%s] estimate_from_image start bytes=%d", trace_id, len(image_bytes),
+    )
+    est, desc = _ollama_vision(b64, trace_id=trace_id)
+    if est is not None:
+        log.info("llm_trace[%s] vision success kcal=%s desc=%r", trace_id, est["kcal"], desc)
+        return est, desc
+    log.warning("llm_trace[%s] vision failed; returning pending", trace_id)
+    return _pending_shell(), None
+
+
 def _pending_shell() -> MealEstimate:
     return MealEstimate(
         kcal=None, protein_g=None, carbs_g=None, fat_g=None,

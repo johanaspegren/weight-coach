@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
 from ..db import connect
@@ -33,6 +33,18 @@ def _resum_daily_kcal_in(conn, day: str) -> None:
 def estimate_meal(body: EstimateIn):
     """Look up macros for a meal description via template cache, then Ollama."""
     return estimator.estimate(body.description, caller="api.meals.estimate")
+
+
+@router.post("/estimate-vision")
+async def estimate_meal_vision(file: UploadFile = File(...)):
+    """Take a meal photo, run qwen3-vl on it, return macros + a description."""
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="empty upload")
+    if len(raw) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="image too large (max 8MB)")
+    est, description = estimator.estimate_from_image(raw)
+    return {**est, "description": description}
 
 
 @router.post("")

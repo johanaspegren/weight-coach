@@ -44,6 +44,16 @@ export const estimateMeal = (description: string) =>
     method: "POST",
     body: JSON.stringify({ description }),
   });
+
+export async function estimateMealVision(
+  file: File | Blob,
+): Promise<MealEstimate & { description?: string | null }> {
+  const fd = new FormData();
+  fd.append("file", file, "meal.jpg");
+  const r = await fetch("/meals/estimate-vision", { method: "POST", body: fd });
+  if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+  return r.json();
+}
 export const postMeal = (body: {
   date: string;
   category: string;
