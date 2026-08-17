@@ -47,7 +47,9 @@ class Settings(BaseSettings):
     discord_guild_id: str = ""
 
     ollama_url: str = "http://localhost:11434"
-    ollama_model: str = "gemma4:e2b"
+    ollama_model: str = "gemma4:12b"
+    ollama_alt_url: str = ""
+    ollama_alt_model: str = ""
 
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
@@ -62,6 +64,24 @@ class Settings(BaseSettings):
     def web_dist(self) -> Path:
         p = Path(self.wc_web_dist)
         return p if p.is_absolute() else (REPO_ROOT / p).resolve()
+
+    @property
+    def ollama_targets(self) -> list[tuple[str, str]]:
+        targets: list[tuple[str, str]] = []
+        if self.ollama_url.strip():
+            targets.append((self.ollama_url.strip().rstrip("/"), self.ollama_model.strip()))
+        if self.ollama_alt_url.strip():
+            alt_model = self.ollama_alt_model.strip() or self.ollama_model.strip()
+            targets.append((self.ollama_alt_url.strip().rstrip("/"), alt_model))
+
+        # Deduplicate while preserving order.
+        seen: set[tuple[str, str]] = set()
+        out: list[tuple[str, str]] = []
+        for t in targets:
+            if t not in seen:
+                seen.add(t)
+                out.append(t)
+        return out
 
 
 settings = Settings()
