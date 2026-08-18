@@ -1,13 +1,18 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
 import { HashRouter, Route, Routes } from "react-router-dom";
 
 import { BottomNav } from "./components/BottomNav";
-import { Detail } from "./views/Detail";
-import { History } from "./views/History";
-import { Home } from "./views/Home";
+import { SkeletonCard } from "./components/Skeleton";
 import { Log } from "./views/Log";
 import { Settings } from "./views/Settings";
+
+// Recharts is heavy (~500KB) — only load it when the user actually visits a
+// route that uses it. Everything else stays in the main bundle.
+const Home = lazy(() => import("./views/Home").then((m) => ({ default: m.Home })));
+const History = lazy(() => import("./views/History").then((m) => ({ default: m.History })));
+const Detail = lazy(() => import("./views/Detail").then((m) => ({ default: m.Detail })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,13 +28,15 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <HashRouter>
         <main>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/log" element={<Log />} />
-            <Route path="/history" element={<History />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/detail/:date" element={<Detail />} />
-          </Routes>
+          <Suspense fallback={<SkeletonCard />}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/log" element={<Log />} />
+              <Route path="/history" element={<History />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/detail/:date" element={<Detail />} />
+            </Routes>
+          </Suspense>
         </main>
         <BottomNav />
       </HashRouter>
