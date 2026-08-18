@@ -135,6 +135,25 @@ Use `scripts/start-dev.sh --with-web` to start the Vite UI too, or add `--reload
 
 See [`deploy/README.md`](deploy/README.md) — three user-mode services (`api`, `worker`, `bot`) + a nightly SQLite backup timer, plus the one-liner (`sudo loginctl enable-linger $USER`) that makes them survive reboots on a headless Pi.
 
+
+## Restart the Rpi server
+
+```bash
+# on the RPi the app should run as systemd services, and start-dev.sh will refuse to start if the API port is already occupied.
+
+cd ~/dev/weight-coach
+git pull
+
+# If the web UI changed, build it first:
+cd ~/dev/weight-coach/web
+npm install
+npm run build
+
+sudo systemctl restart weight-coach-api weight-coach-worker weight-coach-bot
+
+
+```
+
 ## Mobile / remote access — Tailscale
 
 The PWA is served on the Pi's LAN, so straight out of the box it only works when the phone is on your home WiFi. To reach it from anywhere (4G, hotels, coffee shops) without exposing the Pi to the public internet, run **Tailscale** on both the Pi and your phone. Traffic goes over an encrypted WireGuard mesh; nothing is publicly reachable.

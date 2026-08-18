@@ -8,12 +8,10 @@ import type { DailyDetail } from "../services/types";
 
 type Row = [string, string] | [string, string, string];
 
-function KVList<T extends Record<string, unknown>>({ obj, rows }: { obj: T | null | undefined; rows: Row[] }) {
+function KVList({ obj, rows }: { obj: object | null | undefined; rows: Row[] }) {
   if (!obj) return <div className="muted">no data</div>;
-  const shown = rows.filter(([k]) => {
-    const v = (obj as Record<string, unknown>)[k];
-    return v !== null && v !== undefined;
-  });
+  const bag = obj as Record<string, unknown>;
+  const shown = rows.filter(([k]) => bag[k] !== null && bag[k] !== undefined);
   if (!shown.length) return <div className="muted">no data</div>;
   return (
     <>
@@ -21,7 +19,7 @@ function KVList<T extends Record<string, unknown>>({ obj, rows }: { obj: T | nul
         <div key={k} className="kv">
           <div className="k">{label}</div>
           <div className="v">
-            {String((obj as Record<string, unknown>)[k])}
+            {String(bag[k])}
             {suffix}
           </div>
         </div>
