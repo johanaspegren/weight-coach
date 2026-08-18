@@ -106,31 +106,39 @@ export function Home() {
         <SkeletonCard />
       ) : (
         <Card
-          title={`Today's readings${source ? ` · ${source}` : ""}`}
+          title="Today's readings"
           right="tap for detail →"
           href={`#/detail/${today}`}
         >
-          <div className="mini-grid">
-            {g ? (
-              <>
-                <MiniTile label="Body Battery" value={g.body_battery} />
-                <MiniTile label="Sleep" value={g.sleep_score} />
-                <MiniTile label="HRV" value={g.hrv_ms} suffix=" ms" />
-                <MiniTile label="Resting HR" value={g.resting_hr} suffix=" bpm" />
-                <MiniTile label="Stress" value={g.stress_avg} />
-                <MiniTile label="Steps" value={g.steps} />
-              </>
-            ) : (
-              <>
-                <MiniTile label="Readiness" value={o?.readiness} />
-                <MiniTile label="Sleep" value={o?.sleep_score} />
-                <MiniTile label="HRV" value={o?.hrv_avg} />
-                <MiniTile label="vO₂ max" value={o?.vo2_max} />
-                <MiniTile label="Stress hi" value={o?.stress_high_min} suffix=" min" />
-                <MiniTile label="Resilience" value={o?.resilience_level} isText />
-              </>
-            )}
+          <div className="readings-source">
+            <span className="source-badge oura">◯ Oura ring</span>
           </div>
+          <div className="mini-grid">
+            <MiniTile label="Readiness" value={o?.readiness} />
+            <MiniTile label="Sleep" value={o?.sleep_score} />
+            <MiniTile label="HRV" value={o?.hrv_avg} />
+            <MiniTile label="Total burn" value={o?.total_burn} suffix=" kcal" />
+            <MiniTile label="Stress hi" value={o?.stress_high_min} suffix=" min" />
+            <MiniTile label="Resilience" value={o?.resilience_level} isText />
+          </div>
+
+          <div className="readings-source" style={{ marginTop: 18 }}>
+            <span className="source-badge garmin">⌚ Garmin watch</span>
+          </div>
+          <div className="mini-grid">
+            <MiniTile label="Body Battery" value={g?.body_battery} />
+            <MiniTile label="Sleep" value={g?.sleep_score} />
+            <MiniTile label="HRV" value={g?.hrv_ms} suffix=" ms" />
+            <MiniTile label="Resting HR" value={g?.resting_hr} suffix=" bpm" />
+            <MiniTile label="Steps" value={g?.steps} />
+            <MiniTile label="kcal Out" value={g?.total_burn} />
+          </div>
+
+          {!source && (
+            <div className="muted" style={{ marginTop: 12 }}>
+              No wearable data for today yet.
+            </div>
+          )}
         </Card>
       )}
 
